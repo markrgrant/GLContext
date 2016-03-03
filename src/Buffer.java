@@ -6,6 +6,12 @@ import java.util.Set;
 // The memory allocated for a buffer is called its 'data store'.
 // OpenGL does not assign types to buffers - a buffer can be used
 // for any purpose at any time.
+//
+// It is common to place vertex data (position, normal vector, color, etc.)
+// to the video device for non-immediate-mode rendering.  VBOs offer
+// substantial performance gains over immmediate mode rendering because the
+// data resides in video device memory rather than system memory and can be
+// rendered directly by the video device.
 public class Buffer extends GLObject {
 
     // targets to which this buffer is currently bound
@@ -78,11 +84,12 @@ public class Buffer extends GLObject {
     // Any given buffer may or may not have an
     // associated block of memory,
     private class BufferData {
-        private int dataSize;
+        private int sizeInBytes;
         private BufferUsage usage;
 
-        public BufferData(int dataSize, BufferUsage usage) {
-            this.dataSize = dataSize;
+        public BufferData(int sizeInBytes, BufferUsage usage) {
+            assert sizeInBytes >= 0;
+            this.sizeInBytes = sizeInBytes;
             this.usage = usage;
         }
     }

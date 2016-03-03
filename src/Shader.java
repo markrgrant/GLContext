@@ -1,26 +1,66 @@
+import java.util.HashMap;
+
 public class Shader extends GLObject {
 
-    private boolean isDestroyed;
+    private boolean deleted;
 
     // the shader source for easy reference
-    String source;
+    private String source;
 
-    // either GL_TRUE or GL_FALSE dependeing on
-    // the success of or failure of computation
-    boolean isCompiled;
+    private HashMap<String, Integer> attribLocations;
+
+    private boolean linked;
 
     ShaderType type;
+
+    private boolean compiled;
 
     Shader(ShaderType s, int id) {
         super(id);
         source = null;
-        isDestroyed = false;
-        isCompiled = false;
+        deleted = false;
+        compiled = false;
         this.type = s;
+        attribLocations = new HashMap<String, Integer>();
     }
 
-    void destroy() {
-        isDestroyed = true;
+    void delete() {
+        // don't delete a shader that hasn't been linked yet.
+        assert linked;
+        deleted = true;
+    }
+
+    public boolean isCompiled() {
+        return compiled;
+    }
+
+    public boolean isLinked() {
+        return linked;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public void setCompiled(boolean compiled) {
+        this.compiled = compiled;
+    }
+
+    public void setLinked() {
+        linked = true;
+    }
+
+    public void addAttrib(String s, int loc) {
+        attribLocations.put(s, loc);
+    }
+
+    public boolean hasAttribute(String attrib) {
+        assert isLinked();
+        return attribLocations.containsKey(attrib);
     }
 
         /*

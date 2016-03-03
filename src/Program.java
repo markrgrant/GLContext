@@ -4,24 +4,25 @@ public class Program extends GLObject {
 
     private HashMap<Integer, Shader> shaders;
     private int activeAttributes;
-    private boolean isLinked;
+    private boolean linked;
+    private boolean deleted;
 
     // create a program object from an array of shader source code strings
-    public Program(int id) {
+    Program(int id) {
         super(id);
         shaders = new HashMap<Integer, Shader>();
-        isLinked = false;
+        linked = false;
     }
 
-    public boolean isLinked() {
-        return isLinked;
+    boolean isLinked() {
+        return linked;
     }
 
-    public void link() {
-        isLinked = true;
+    void link() {
+        linked = true;
     }
 
-    public void attach(Shader s) {
+    void attach(Shader s) {
         shaders.put(s.getId(), s);
     }
 
@@ -29,6 +30,37 @@ public class Program extends GLObject {
         return "";
     }
 
+    boolean isDeleted() {
+        return deleted;
+    }
+
+    void setLinked(boolean linked) {
+        // verify every shader has been compiled
+        for (Shader s : shaders.values()) {
+            assert s.isCompiled();
+            s.setLinked();
+        }
+        this.linked = linked;
+    }
+
+    void delete() {
+        deleted = true;
+    }
+
+    boolean shadersReady() {
+        if (shaders.size() == 0) return false;
+        for (Shader s : shaders.values()) {
+            if (!s.isCompiled()) return false;
+        }
+        return true;
+    }
+
+    boolean hasAttribute(CharSequence attrib) {
+        for (Shader s : shaders.values()) {
+            if (s.hasAttribute(attrib.toString())) return true;
+        }
+        return false;
+    }
         /*
         public Program(CharSequence[] vertexShaders,
                        CharSequence[] fragmentShaders) {

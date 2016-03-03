@@ -46,6 +46,8 @@ public class GLContext {
         return buffer;
     }
 
+    // Create a program object to which shader objects can be attached
+    // and linked
     public Program glCreateProgram() {
         int programId = GL20.glCreateProgram();
         checkGLError();
@@ -54,6 +56,8 @@ public class GLContext {
         return p;
     }
 
+    // Create an empty shader object, ready to accept source code and be
+    // compiled
     public Shader glCreateShader(ShaderType t) {
         int shaderId = GL20.glCreateShader(shaderTypeToGL(t));
         checkGLError();
@@ -67,6 +71,9 @@ public class GLContext {
         return new Framebuffer(framebufferId);
     }
 
+    // Install the given program object as part of the current rendering state.
+    // The program object in use can be modified after it is used, but these
+    // changes will only be made active if the program is re-linked again.
     public void glUseProgram(Program p) {
         if (p == null) {
             GL20.glUseProgram(0);
@@ -80,18 +87,23 @@ public class GLContext {
         checkGLError();
     }
 
+    // sets the source code of the shader.  Any source code stored in the
+    // shader object is completely replaced.
     public void glShaderSource(Shader shader, String str) {
+        assert shader.getSource() == null;
+        assert !shader.isCompiled();
         GL20.glShaderSource(shader.getId(), str);
         checkGLError();
-        shader.source = str;
+        shader.setSource(str);
     }
 
+    // compile whatever source code is contained in the shader object.
     public void glCompileShader(Shader s) {
-        assert !s.isCompiled;
-        assert s.source != null;
+        assert !s.isCompiled();
+        assert s.getSource() != null;
         GL20.glCompileShader(s.getId());
-        s.isCompiled = glGetShaderi(s.getId(), GL_COMPILE_STATUS) == 1;
-        if (!s.isCompiled) {
+        s.setCompiled(glGetShaderi(s.getId(), GL_COMPILE_STATUS) == 1);
+        if (!s.isCompiled()) {
             String strInfoLog = glGetShaderInfoLog(s.getId());
             String strShaderType = "";
             switch (s.type) {
@@ -108,11 +120,13 @@ public class GLContext {
         }
     }
 
-    // draw vertices with data obtained from the current vertex array object
-    // bound to the vertex array target.
+    // Send vertex data into the OpenGL pipeline.
     // s - the DrawMode (such as GL_POINTS, GL_TRIANGLES, etc.)
     // first - the starting index in the vertex array data
     // count - the number of vertex data points to read
+    //
+    // This function would be called with every loop iteration if any
+    // of the vertex shader inputs are also changing.
     public void glDrawArrays(DrawMode s, int first, int count) {
         // a vertex array object must be bound, it specifies
         // where the vertex data comes from when this function is
@@ -129,17 +143,48 @@ public class GLContext {
         checkGLError();
     }
 
+    // Clear the specified buffer of the currently bound 'draw framebuffer'.
+    // with the provided value.
+    // buffer - the desired buffer of the current 'draw' framebuffer.
+    // drawbuffer -
+    // color -
     public void glClearBufferfv(FramebufferBuffer buffer, int drawbuffer,
                                 float[] color) {
         GL30.glClearBufferfv(fbbToGL(buffer), drawbuffer, FloatBuffer.wrap
                 (color));
     }
 
+    // Delete a ahader object.  Once a shader has been linked to a program
+    // object the program contains the binary code and the shader is no
+    // longer needed, so it is safe to delete the shaders immediately after
+    // the program has been linked.
+    public void glDeleteShader(Shader s) {
+        assert s.isLinked(); // don't delete a shader if it hasn't been linked
+        GL20.glDeleteShader(s.getId());
+        s.delete();
+    }
+
+    // Program objects should be deleted when they are no longer needed.
+    // This is usually during cleanup after the application has completed
+    // runing.
+    public void glDeleteProgram(Program p) {
+        assert !p.isDeleted();
+        assert p.isLinked();
+        GL20.glDeleteProgram(p.getId());
+        p.delete();
+    }
+
+    // link all of the shader objects attached to a program object together.
+    // At least one shader should be attached beforehand.  All of the shaders
+    // should have been compiled already, and there should be at least one
+    // shader (otherwise a program shouldn't be used).
     public void glLinkProgram(Program p) {
+        assert !p.isLinked();
+        assert p.shadersReady();
         GL20.glLinkProgram(p.getId());
-        boolean isLinked = GL20.glGetProgrami(p.getId(), GL20
-                .GL_LINK_STATUS) == 1;
-        if (!isLinked) {
+        p.setLinked(GL20.glGetProgrami(p.getId(), GL20
+                .GL_LINK_STATUS) == 1);
+        if (p.isLinked()) {
             String strInfoLog = GL20.glGetProgramInfoLog(p.getId());
             throw new RuntimeException("Linker failure: " + strInfoLog +
                     "\n");
@@ -158,7 +203,10 @@ public class GLContext {
         checkGLError();
     }
 
+    // Attach a shader object to the program object
     public void glAttachShader(Program p, Shader s) {
+        assert !p.isLinked();
+        assert s.isCompiled();
         p.attach(s);
         GL20.glAttachShader(p.getId(), s.getId());
         checkGLError();
@@ -347,6 +395,17 @@ public class GLContext {
         checkGLError();
     }
 
+    // set a vertex attribute to a specific value rather than use a vertex
+    // array for specifying attribute values from a buffer.
+    // This particular function assigns values to a vec4 of floating
+    // point values.
+    //
+    // This function should be called whenever a change in the data needs to
+    // be made visible.
+    public void glVertexAttrib4fv(int attrib, FloatBuffer data) {
+        GL20.glVertexAttrib4fv(attrib, data);
+    }
+
     // enables the automatic reading of data for a particular attribute
     // from a vertex buffer, as configured by glVertexAttribPointer.
     // A buffer must be
@@ -456,7 +515,11 @@ public class GLContext {
         return s;
     }
 
+    // Retrieve the location of a specific attribute for the given linked
+    // program.
     public int glGetAttribLocation(Program p, CharSequence attrib) {
+        assert p.isLinked();
+        assert p.hasAttribute(attrib);
         int loc = GL20.glGetAttribLocation(p.getId(), attrib);
         checkGLError();
         return loc;
@@ -662,7 +725,7 @@ public class GLContext {
     // the currently bound draw framebuffer
     private Framebuffer framebuffer;
 
-    // the point size
+    // the current point size
     private float pointSize;
 
     // the program currently in use

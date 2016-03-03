@@ -36,7 +36,6 @@
 public class DefaultFramebuffer {
 
     DefaultFramebuffer() {
-
     }
 
     enum DefaultFramebufferBuffers {

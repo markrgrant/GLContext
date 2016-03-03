@@ -1,7 +1,13 @@
 import java.util.HashSet;
 import java.util.Set;
 
-// A vertex array object associates
+// A vertex array object contains a configuration for the loading of data
+// from a buffer object into the attributes of a vertex shader. By binding a
+// vertex array object to the current context, its configuration will be used
+// for data loading (provided the vertex shader inputs have been enabled).
+
+// A vertex object must be created if shader input is being provided from
+// buffer object(s).
 public class VertexArray extends GLObject {
 
     private VertexArrayTarget target;
