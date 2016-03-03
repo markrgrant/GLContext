@@ -1,9 +1,4 @@
-import org.lwjgl.opengl.GL20;
-import org.lwjgl.opengl.GL32;
-
-public class Shader {
-    // the shader id
-    int id;
+public class Shader extends GLObject {
 
     private boolean isDestroyed;
 
@@ -16,19 +11,15 @@ public class Shader {
 
     ShaderType type;
 
-    public Shader(ShaderType s, int shaderId) {
-        this.id = shaderId;
+    Shader(ShaderType s, int id) {
+        super(id);
         source = null;
         isDestroyed = false;
         isCompiled = false;
         this.type = s;
     }
 
-    public int getId() {
-        return id;
-    }
-
-    public void destroy() {
+    void destroy() {
         isDestroyed = true;
     }
 
@@ -71,17 +62,5 @@ public class Shader {
         }
         */
 
-    public static int shaderTypeToGL(ShaderType t) {
-        switch (t) {
-            case GL_FRAGMENT_SHADER:
-                return GL20.GL_FRAGMENT_SHADER;
-            case GL_VERTEX_SHADER:
-                return GL20.GL_VERTEX_SHADER;
-            case GL_GEOMETRY_SHADER:
-                return GL32.GL_GEOMETRY_SHADER;
-            default:
-                throw new IllegalArgumentException();
-        }
-    }
 }
 

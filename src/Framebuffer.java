@@ -3,8 +3,7 @@
 // creation of user-defined framebuffers.  With them, one can render
 // to non-default framebuffer locations, and thus render without
 // disturbing the main screen.
-public class Framebuffer {
-    private int id;   // the id of the framebuffer
+public class Framebuffer extends GLObject {
     private float red;  // the color buffer of the framebuffer
     private float blue;
     private float green;
@@ -13,17 +12,13 @@ public class Framebuffer {
     private int depth;   // the depth buffer of the framebuffer
     private FramebufferTarget target; // currently bound target
 
-    public Framebuffer(int id) {
-        this.id = id;
+    Framebuffer(int id) {
+        super(id);
         target = null;
     }
 
     boolean isBound() {
         return target != null;
-    }
-
-    int getId() {
-        return id;
     }
 
     public String toString() {

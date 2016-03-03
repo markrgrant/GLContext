@@ -4,7 +4,6 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -56,7 +55,7 @@ public class GLContext {
     }
 
     public Shader glCreateShader(ShaderType t) {
-        int shaderId = GL20.glCreateShader(Shader.shaderTypeToGL(t));
+        int shaderId = GL20.glCreateShader(shaderTypeToGL(t));
         checkGLError();
         Shader s = new Shader(t, shaderId);
         shaders.put(s.getId(), s);
@@ -161,7 +160,7 @@ public class GLContext {
 
     public void glAttachShader(Program p, Shader s) {
         p.attach(s);
-        GL20.glAttachShader(p.getId(), s.id);
+        GL20.glAttachShader(p.getId(), s.getId());
         checkGLError();
     }
 
@@ -501,93 +500,6 @@ public class GLContext {
 
     }
 
-
-    // A vertex array object associates
-    public class VertexArray {
-
-        private int id;
-        private VertexArrayTarget target;
-        private Set<Pointer> pointers;
-
-        private VertexArray(int id) {
-            this.id = id;
-            this.pointers = new HashSet<Pointer>();
-        }
-        private int getId() {
-            return id;
-        }
-         private void bind(VertexArrayTarget t) {
-            assert target == null;
-            target = t;
-        }
-        private void unbind() {
-            target = null;
-        }
-        private boolean isBound() {
-            return target != null;
-        }
-
-        private void addPointer(int index, int size, GLType type,
-                                boolean normalized, int stride, int offset) {
-            pointers.add(new Pointer(index, size, type, normalized, stride,
-                    offset));
-        }
-
-        private boolean hasPointers() {
-            return pointers.size() > 0;
-        }
-
-        private class Pointer {
-            int index;
-            int size;
-            GLType type;
-            boolean normalized;
-            int stride;
-            int offset;
-
-            private Pointer(int index, int size, GLType type, boolean
-                    normalized, int stride, int offset) {
-                this.index = index;
-                this.size = size;
-                this.type = type;
-                this.normalized = normalized;
-                this.stride = stride;
-                this
-                        .offset = offset;
-            }
-        }
-    }
-
-
-    public class Texture {
-        private int id;
-        private TextureTarget target;
-
-        private Texture(int id) {
-            this.id = id;
-        }
-        private int getId() {
-            return id;
-        }
-         private void bind(TextureTarget t) {
-            assert target == null;
-            target = t;
-        }
-        private void unbind() {
-            target = null;
-        }
-        private boolean isBound() {
-            return target != null;
-        }
-    }
-
-    private enum TextureTarget {
-        GL_TEXTURE_1D, GL_TEXTURE_2D, GL_TEXTURE_3D, GL_TEXTURE_RECTANGLE,
-        GL_TEXTURE_1D_ARRAY, GL_TEXTURE_2D_ARRAY, GL_TEXTURE_CUBE_MAP,
-        GL_TEXTURE_CUBE_MAP_ARRAY, GL_TEXTURE_BUFFER, GL_TEXTURE_2D_MULTISAMPLE,
-        GL_TEXTURE_2D_MULTISAMPLE_ARRAY
-    }
-
     private int textureTargetToGL(TextureTarget t) {
         switch(t) {
             case GL_TEXTURE_1D: return GL11.GL_TEXTURE_1D;
@@ -606,10 +518,6 @@ public class GLContext {
                     .GL_TEXTURE_2D_MULTISAMPLE_ARRAY;
         }
         throw new IllegalArgumentException();
-    }
-
-
-    enum VertexArrayTarget {
     }
 
     private static int bufferTargetToGL(BufferTarget t) {
@@ -707,6 +615,19 @@ public class GLContext {
                 return GL11.GL_QUAD_STRIP;
             case GL_POLYGON:
                 return GL11.GL_POLYGON;
+            default:
+                throw new IllegalArgumentException();
+        }
+    }
+
+    int shaderTypeToGL(ShaderType t) {
+        switch (t) {
+            case GL_FRAGMENT_SHADER:
+                return GL20.GL_FRAGMENT_SHADER;
+            case GL_VERTEX_SHADER:
+                return GL20.GL_VERTEX_SHADER;
+            case GL_GEOMETRY_SHADER:
+                return GL32.GL_GEOMETRY_SHADER;
             default:
                 throw new IllegalArgumentException();
         }

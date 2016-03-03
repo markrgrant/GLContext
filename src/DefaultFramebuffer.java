@@ -35,11 +35,11 @@
 // and can't be written.  Fragments aimed at such pixels are discarded.
 public class DefaultFramebuffer {
 
-    public DefaultFramebuffer() {
+    DefaultFramebuffer() {
 
     }
 
-    private enum DefaultFramebufferBuffers {
+    enum DefaultFramebufferBuffers {
         GL_FRONT_LEFT,  // always available
         GL_BACK_LEFT,   // always available
 

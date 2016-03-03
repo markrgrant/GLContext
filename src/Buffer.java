@@ -6,10 +6,8 @@ import java.util.Set;
 // The memory allocated for a buffer is called its 'data store'.
 // OpenGL does not assign types to buffers - a buffer can be used
 // for any purpose at any time.
-public class Buffer {
+public class Buffer extends GLObject {
 
-    // the buffer 'name'
-    private int id;
     // targets to which this buffer is currently bound
     private HashMap<BufferTarget, Buffer> bindings;
     private boolean isDeleted;
@@ -19,8 +17,8 @@ public class Buffer {
     private BufferData data;
 
     // this buffer
-    public Buffer(int id) {
-        this.id = id;
+    Buffer(int id) {
+        super(id);
         bindings = new HashMap<BufferTarget, Buffer>();
         isDeleted = false;
         data = null;
@@ -30,38 +28,41 @@ public class Buffer {
         return isDeleted;
     }
 
-    public boolean hasData() {
+    boolean hasData() {
         return data != null;
     }
 
-    public void addData(int dataSize, BufferUsage u) {
-        assert this.data == null;
+    void addData(int dataSize, BufferUsage u) {
+        // don't allow accidental overwriting of existing data
+        assert !this.hasData();
         this.data = new BufferData(dataSize, u);
     }
 
-    public int getId() {
-        return id;
-    }
-
-    public void bind(BufferTarget t) {
+    void bind(BufferTarget t) {
+        // don't allow overwriting of an existing binding
+        assert bindings.get(t) == null;
         bindings.put(t, this);
     }
 
-    public void unbind(BufferTarget t) {
+    void unbind(BufferTarget t) {
+        // verify this buffer is bound to the target in question
+        assert bindings.get(t) == this;
         bindings.remove(t);
     }
 
-    public void delete() {
+    void delete() {
+        // require that all existing bindings have
+        // been removed before deleting
         assert bindings.size() == 0;
         isDeleted = true;
     }
 
-    public Set<BufferTarget> getBindings() {
+    Set<BufferTarget> getBindings() {
         return bindings.keySet();
     }
 
     public String toString() {
-        String s = "(id=" + id + ", ";
+        String s = "(id=" + getId() + ", ";
         String sb = "";
         if (bindings.isEmpty()) sb = "None";
         else {
@@ -73,7 +74,10 @@ public class Buffer {
         return s;
     }
 
-    public class BufferData {
+    // Represents the memory bound to a buffer.
+    // Any given buffer may or may not have an
+    // associated block of memory,
+    private class BufferData {
         private int dataSize;
         private BufferUsage usage;
 

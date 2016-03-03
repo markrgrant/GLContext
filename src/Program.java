@@ -1,21 +1,16 @@
 import java.util.HashMap;
 
-public class Program {
+public class Program extends GLObject {
 
-    private int id;
     private HashMap<Integer, Shader> shaders;
     private int activeAttributes;
     private boolean isLinked;
 
     // create a program object from an array of shader source code strings
     public Program(int id) {
-        this.id = id;
+        super(id);
         shaders = new HashMap<Integer, Shader>();
         isLinked = false;
-    }
-
-    public int getId() {
-        return id;
     }
 
     public boolean isLinked() {
