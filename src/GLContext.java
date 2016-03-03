@@ -23,12 +23,18 @@ public class GLContext {
         for (TextureTarget target : TextureTarget.values()) {
             textureTargets.put(target, null);
         }
+        framebufferTargets = new HashMap<FramebufferTarget, Framebuffer>();
+        for (FramebufferTarget t : FramebufferTarget.values()) {
+            framebufferTargets.put(t, null);
+        }
+        framebuffers = new HashMap<Integer, Framebuffer>();
         buffers = new HashMap<Integer, Buffer>();
         textures = new HashMap<Integer, Texture>();
         vertexArrays = new HashMap<Integer, VertexArray>();
         programs = new HashMap<Integer, Program>();
         shaders = new HashMap<Integer, Shader>();
         bitplane = new Bitplane();
+        defaultFramebuffer = new DefaultFramebuffer();
     }
 
     // reserve a new buffer object
@@ -50,11 +56,16 @@ public class GLContext {
     }
 
     public Shader glCreateShader(ShaderType t) {
-        int shaderId = GL20.glCreateShader(shaderTypeToGL(t));
+        int shaderId = GL20.glCreateShader(Shader.shaderTypeToGL(t));
         checkGLError();
         Shader s = new Shader(t, shaderId);
         shaders.put(s.getId(), s);
         return s;
+    }
+
+    public Framebuffer glGenFramebuffer() {
+        int framebufferId = GL30.glGenFramebuffers();
+        return new Framebuffer(framebufferId);
     }
 
     public void glUseProgram(Program p) {
@@ -150,7 +161,7 @@ public class GLContext {
 
     public void glAttachShader(Program p, Shader s) {
         p.attach(s);
-        GL20.glAttachShader(p.id, s.id);
+        GL20.glAttachShader(p.getId(), s.id);
         checkGLError();
     }
 
@@ -241,6 +252,12 @@ public class GLContext {
         GL15.glBindBuffer(bufferTargetToGL(target), buffer.getId());
     }
 
+    private void glBindFramebuffer(FramebufferTarget t, Framebuffer fb) {
+        assert !fb.isBound();
+        assert framebufferTargets.get(t) == null;
+        GL30.glBindFramebuffer(fbtToGL(t), fb.getId());
+    }
+
     private void unbindBuffer(BufferTarget t) {
         Buffer b = bufferTargets.get(t);
         assert b != null;
@@ -272,7 +289,7 @@ public class GLContext {
         assert isBound(target);
         Buffer b = bufferTargets.get(target);
         assert !b.hasData();
-        b.addData(buffer, usage);
+        b.addData(buffer.array().length, usage);
         GL15.glBufferData(bufferTargetToGL(target), buffer, usageToGL(usage));
         checkGLError();
     }
@@ -378,7 +395,7 @@ public class GLContext {
     }
 
     public boolean isDeleted(Buffer b) {
-        return b.isDeleted;
+        return b.isDeleted();
     }
 
     public String toString() {
@@ -396,6 +413,12 @@ public class GLContext {
             String tstr = tex == null ? "None" : Integer.toString(tex.getId());
             s = s.concat(t + "=" + tstr + "\n");
         }
+        s = s.concat("\nFramebuffer Targets:\n");
+        for (FramebufferTarget fbt : framebufferTargets.keySet()) {
+            Framebuffer fb = framebufferTargets.get(fbt);
+            String fbstr = fb == null ? "None" : Integer.toString(fb.getId());
+            s = s.concat(fbt + "=" + fbstr + "\n");
+        }
         s = s.concat("\nVertex Array Target:\n");
         // include vertex array target binding status
         String vastr = vertexArrayTarget == null ? "None" : Integer.toString
@@ -407,6 +430,10 @@ public class GLContext {
         s = s.concat("\nTextures:\n" + mapToString(textures));
         // include existing vertex arrays
         s = s.concat("\nVertex Arrays:\n" + mapToString(vertexArrays));
+        // includeexisting framebuffers
+        s = s.concat("\nFramebuffers:\n" + mapToString(framebuffers));
+        // the default framebuffer state
+        s = s.concat("\nDefault Framebuffer:\n" + defaultFramebuffer);
 
         s = s.concat("\nPoint Size:\n" + pointSize + "\n");
         // the program in use
@@ -440,145 +467,7 @@ public class GLContext {
         GL30.glBindFragDataLocation(p.getId(), location, name);
     }
 
-    public class Shader {
-        // the shader id
-        int id;
 
-        private boolean isDestroyed;
-
-        // the shader source for easy reference
-        String source;
-
-        // either GL_TRUE or GL_FALSE dependeing on
-        // the success of or failure of computation
-        boolean isCompiled;
-
-        ShaderType type;
-
-        private Shader(ShaderType s, int shaderId) {
-            this.id = shaderId;
-            source = null;
-            isDestroyed = false;
-            isCompiled = false;
-            this.type = s;
-        }
-
-        public int getId() {
-            return id;
-        }
-
-        public void destroy() {
-            isDestroyed = true;
-        }
-
-        /*
-        // create a shader object and compile the shader.
-        Shader(int eShaderType, CharSequence shaderSource) {
-
-            this.type = eShaderType;
-
-            // create a shader opengl object and save its id
-            id = glCreateShader(eShaderType);
-
-            // save the shader source for access.
-            source = shaderSource;
-
-            // set the shader source
-            glShaderSource(id, source);
-
-            // compile the shader
-            glCompileShader(id);
-
-            // check for errors and print them to stderr
-            isCompiled = glGetShaderi(id, GL_COMPILE_STATUS) == 1 ?
-                    true : false;
-            if(!isCompiled) {
-                String strInfoLog = glGetShaderInfoLog(id);
-                String strShaderType = "";
-                switch(eShaderType) {
-                    case GL_VERTEX_SHADER:
-                        strShaderType = "vertex";
-                        break;
-                    case GL_FRAGMENT_SHADER:
-                        strShaderType = "fragment";
-                        break;
-                }
-                String msg = "Compile failure in " + strShaderType +
-                    " shader:\n" + strInfoLog + "\n";
-                throw new RuntimeException(msg);
-            }
-        }
-        */
-    }
-
-    public class Program {
-
-        public int id;
-        HashMap<Integer, Shader> shaders;
-        int activeAttributes;
-        private boolean isLinked;
-
-        // create a program object from an array of shader source code strings
-        private Program(int id) {
-            this.id = id;
-            shaders = new HashMap<Integer, Shader>();
-            isLinked = false;
-        }
-
-        private int getId() {
-            return id;
-        }
-
-        public boolean isLinked() {
-            return isLinked;
-        }
-
-        public void link() {
-            isLinked = true;
-        }
-
-        public void attach(Shader s) {
-            shaders.put(s.getId(), s);
-        }
-
-        public String toString() {
-            return "";
-        }
-
-        /*
-        public Program(CharSequence[] vertexShaders,
-                       CharSequence[] fragmentShaders) {
-            isLinked = false;
-            id = glCreateProgram();
-            shaders = new Shader[vertexShaders.length +
-                    fragmentShaders.length];
-            int i = 0;
-            for (CharSequence vs : vertexShaders) {
-                Shader s = new VertexShader(vs);
-                shaders[i++] = s;
-            }
-
-            for (CharSequence fs : fragmentShaders) {
-                Shader s = new FragmentShader(fs);
-                shaders[i++] = s;
-            }
-
-            for(Shader s : shaders) {
-                glAttachShader(id, s.id);
-            }
-
-            glLinkProgram(id);
-
-            isLinked = glGetProgrami(id, GL_LINK_STATUS) == 1 ? true : false;
-            if(!isLinked) {
-                String strInfoLog = glGetProgramInfoLog(id);
-                throw new RuntimeException("Linker failure: " + strInfoLog + "\n");
-            }
-            glUseProgram(id);
-            activeAttributes = glGetProgrami(id, GL_ACTIVE_ATTRIBUTES);
-        }
-        */
-    }
 
     private class Bitplane {
         private float red;
@@ -612,78 +501,6 @@ public class GLContext {
 
     }
 
-    public class Buffer {
-        private int id;
-        private HashMap<BufferTarget, Buffer> bindings;
-        private boolean isDeleted;
-
-        // the data associated with this buffer.  It is
-        // populated by a calling glBufferData on a target
-        // to which this buffer is bound.
-
-        private BufferData data;
-
-        // this buffer
-        private Buffer(int id) {
-            this.id = id;
-            bindings = new HashMap<BufferTarget, Buffer>();
-            isDeleted = false;
-            data = null;
-        }
-
-        private boolean hasData() {
-            return data != null;
-        }
-
-        private void addData(FloatBuffer data, BufferUsage u) {
-            assert this.data == null;
-            this.data = new BufferData(data, u);
-        }
-
-        private int getId() {
-            return id;
-        }
-
-        private void bind(BufferTarget t) {
-            bindings.put(t, this);
-        }
-
-        private void unbind(BufferTarget t) {
-            bindings.remove(t);
-        }
-
-        private void delete() {
-            assert bindings.size() == 0;
-            isDeleted = true;
-        }
-
-        private Set<BufferTarget> getBindings() {
-            return bindings.keySet();
-        }
-
-        public String toString() {
-            String s = "(id=" + id + ", ";
-            String sb = "";
-            if (bindings.isEmpty()) sb = "None";
-            else {
-                for (BufferTarget b : bindings.keySet()) {
-                    sb = sb.concat(b.toString() + " ");
-                }
-            }
-            s = s.concat("bindings=" + sb + ")\n");
-            return s;
-        }
-
-        private class BufferData {
-            private FloatBuffer data;
-            private BufferUsage usage;
-
-            public BufferData(FloatBuffer data, BufferUsage usage) {
-                this.data = data;
-                this.usage = usage;
-            }
-        }
-    }
 
     // A vertex array object associates
     public class VertexArray {
@@ -791,15 +608,11 @@ public class GLContext {
         throw new IllegalArgumentException();
     }
 
-    enum BufferTarget {
-        GL_ARRAY_BUFFER, GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER,
-        GL_ELEMENT_ARRAY_BUFFER
-    }
 
     enum VertexArrayTarget {
     }
 
-    private int bufferTargetToGL(BufferTarget t) {
+    private static int bufferTargetToGL(BufferTarget t) {
         switch(t) {
             case GL_ARRAY_BUFFER:
                 return GL15.GL_ARRAY_BUFFER;
@@ -813,11 +626,6 @@ public class GLContext {
         throw new IllegalArgumentException();
     }
 
-    enum BufferUsage {
-        GL_STREAM_DRAW, GL_STREAM_READ, GL_STREAM_COPY, GL_STATIC_DRAW,
-        GL_STATIC_READ, GL_STATIC_COPY, GL_DYNAMIC_DRAW, GL_DYNAMIC_READ,
-        GL_DYNAMIC_COPY
-    }
 
     private int usageToGL(BufferUsage u) {
         switch(u) {
@@ -834,30 +642,21 @@ public class GLContext {
         }
     }
 
-    enum BufferBit {
-        GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT, GL_STENCIL_BUFFER_BIT
-    }
-
-    // a framebuffer object is an OpenGL object which allows for the
-    // creation of user-defined framebuffers.  With them, one can render
-    // to non-default framebuffer locations, and thus render without
-    // disturbing the main screen.
-    private class Framebuffer {
-        private int id;   // the id of the framebuffer
-        private float red;  // the color buffer of the framebuffer
-        private float blue;
-        private float green;
-        private float alpha;
-        private int stencil; // the stencil buffer of the framebuffer
-        private int depth;   // the depth buffer of the framebuffer
-
-        public String toString() {
-            return ""; // FIXME:
-        }
-    }
-
     private enum FramebufferBuffer {
         GL_COLOR, GL_STENCIL, GL_DEPTH
+    }
+
+    private int fbtToGL(FramebufferTarget t) {
+        switch (t) {
+            case GL_FRAMEBUFFER:
+                return GL30.GL_FRAMEBUFFER;
+            case GL_READ_FRAMEBUFFER:
+                return GL30.GL_READ_FRAMEBUFFER;
+            case GL_DRAW_FRAMEBUFFER:
+                return GL30.GL_DRAW_FRAMEBUFFER;
+            default:
+                throw new IllegalArgumentException();
+        }
     }
 
     private int fbbToGL(FramebufferBuffer b) {
@@ -884,36 +683,6 @@ public class GLContext {
             default:
                 throw new IllegalArgumentException();
         }
-    }
-
-    enum ShaderType {
-        GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, GL_GEOMETRY_SHADER
-    }
-
-    private int shaderTypeToGL(ShaderType t) {
-        switch (t) {
-            case GL_FRAGMENT_SHADER:
-                return GL20.GL_FRAGMENT_SHADER;
-            case GL_VERTEX_SHADER:
-                return GL20.GL_VERTEX_SHADER;
-            case GL_GEOMETRY_SHADER:
-                return GL32.GL_GEOMETRY_SHADER;
-            default:
-                throw new IllegalArgumentException();
-        }
-    }
-
-    enum DrawMode {
-        GL_POINTS,
-        GL_LINE_STRIP,
-        GL_LINE_LOOP,
-        GL_LINES,
-        GL_TRIANGLE_STRIP,
-        GL_TRIANGLE_FAN,
-        GL_TRIANGLES,
-        GL_QUAD_STRIP,
-        GL_QUADS,
-        GL_POLYGON
     }
 
     private int drawModeToGL(DrawMode m) {
@@ -943,11 +712,6 @@ public class GLContext {
         }
     }
 
-    enum GLType {
-        GL_BYTE, GL_UNSIGNED_BYTE, GL_SHORT, GL_UNSIGNED_SHORT, GL_INT,
-        GL_UNSIGNED_INT, GL_FLOAT, GL_DOUBLE
-    }
-
     private int typetoGL(GLType t) {
         switch(t) {
             case GL_BYTE:
@@ -968,13 +732,11 @@ public class GLContext {
     // bound targets
     private Map<BufferTarget, Buffer> bufferTargets;
     private Map<TextureTarget, Texture> textureTargets;
+    private Map<FramebufferTarget, Framebuffer> framebufferTargets;
     private VertexArray vertexArrayTarget;
 
     // the current bit plane
     private Bitplane bitplane;
-
-    // named framebuffers
-    private HashMap<Integer, Framebuffer> framebuffers;
 
     // the currently bound draw framebuffer
     private Framebuffer framebuffer;
@@ -985,11 +747,14 @@ public class GLContext {
     // the program currently in use
     Program program;
 
+    // the default framebuffer
+    DefaultFramebuffer defaultFramebuffer;
+
     // OpenGL objects (bound or unbound)
     private HashMap<Integer, Buffer> buffers;
     private HashMap<Integer, Texture> textures;
     private HashMap<Integer, VertexArray> vertexArrays;
     private HashMap<Integer, Program> programs;
     private HashMap<Integer, Shader> shaders;
+    private HashMap<Integer, Framebuffer> framebuffers;
 }
-
