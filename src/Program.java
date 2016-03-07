@@ -30,7 +30,7 @@ public class Program extends GLObject {
         return "";
     }
 
-    boolean isDeleted() {
+    public boolean isDeleted() {
         return deleted;
     }
 
@@ -43,7 +43,7 @@ public class Program extends GLObject {
         this.linked = linked;
     }
 
-    void delete() {
+    public void delete() {
         deleted = true;
     }
 

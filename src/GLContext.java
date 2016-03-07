@@ -3,6 +3,7 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -14,6 +15,7 @@ import static org.lwjgl.opengl.GLUtil.checkGLError;
 public class GLContext {
 
     public GLContext() {
+
         bufferTargets = new HashMap<BufferTarget, Buffer>();
         for (BufferTarget target : BufferTarget.values()) {
             bufferTargets.put(target, null);
@@ -190,6 +192,11 @@ public class GLContext {
                     "\n");
         }
         p.link();
+        //int linkStatus = c.glGetProgrami(program, GL_LINK_STATUS);
+        //assert(linkStatus==1);
+        //int numActiveAttrs = glGetProgrami(program, GL_ACTIVE_ATTRIBUTES);
+        //assert(numActiveAttrs==1);
+
     }
 
     public float getPointSize() {
@@ -208,8 +215,12 @@ public class GLContext {
         assert !p.isLinked();
         assert s.isCompiled();
         p.attach(s);
+        int shadersAttachedBefore = glGetProgrami(program.getId(),
+                GL_ATTACHED_SHADERS);
         GL20.glAttachShader(p.getId(), s.getId());
-        checkGLError();
+        int shadersAttachedAfter = glGetProgrami(program.getId(),
+                GL_ATTACHED_SHADERS);
+        assert shadersAttachedAfter == shadersAttachedBefore + 1;
     }
 
     public void glClearDepth(double depth) {
@@ -271,6 +282,7 @@ public class GLContext {
         GL30.glDeleteVertexArrays(a.getId());
     }
 
+    //  reserve a new Texture object
     public Texture glGenTextures() {
         int id = GL11.glGenTextures();
         checkGLError();
@@ -278,6 +290,15 @@ public class GLContext {
         Texture texture = new Texture(id);
         textures.put(id, texture);
         return texture;
+    }
+
+    // delete the texture object.
+    public void glDeleteTextures(Texture texture) {
+        assert textures.containsKey(texture.getId());
+        assert !texture.isBound();
+        assert !texture.isDeleted();
+        GL11.glDeleteTextures(texture.getId());
+        texture.delete();
     }
 
     // get the program in use
@@ -312,10 +333,73 @@ public class GLContext {
         b.unbind(t);
     }
 
+    // The texture target to which a texture object is first bound
+    // determines the type of that texture object thereafter.  To unbind
+    // a target, the texture can be null.
     public void glBindTexture(TextureTarget target, Texture texture) {
+        if (texture == null) {
+            assert textureTargets.get(target) != null;
+            GL11.glBindTexture(textureTargetToGL(target), 0);
+            textureTargets.get(target).setTarget(null);
+            textureTargets.put(target, null);
+            return;
+        }
+        // a texture can only be bound once to a particular target, and
+        // thereafter cannot be bound to a different target.
+        assert texture.getTarget() == null || texture.getTarget() == target;
         GL11.glBindTexture(textureTargetToGL(target), texture.getId());
+        textureTargets.put(target, texture);
+        texture.setTarget(target);
         checkGLError();
     }
+
+    public void glTexImage2D(TextureTarget target, int detail,
+                             TextureFormat format, int width, int height,
+                             TextureFormat srcFormat, GLType type,
+                             FloatBuffer data) {
+        assert isBound(target);
+        GL11.glTexImage2D(textureTargetToGL(target), detail, fmtToGL(format),
+                width, height, 0, fmtToGL(srcFormat), typeToGL(type), data);
+    }
+
+
+    // Specifies immutable texture storage for the exture object currently
+    // bound to the GL_TEXTURE_2D target, or the GL_TEXTURE_1D_ARRAY target.
+
+    // target - the target to which the texture object has been bound.  Must
+    //          be either GL_TEXTURE_1D_ARRAY or GL_TEXTURE_2D.
+    // level - the number of levels used in mipmapping
+    // fmt - the internal format of the texture
+    // width - width of texture
+    // height - height of texture (or # of slices if GL_TEXTURE_1D_ARRAY)
+    public void glTexStorage2D(TextureTarget target, int level, TextureFormat
+            fmt, int width, int height) {
+        assert textureTargets.get(target) != null;
+        GL42.glTexStorage2D(textureTargetToGL(target), level, fmtToGL(fmt),
+                width, height);
+    }
+
+    // Specify the data for the texture.  The texture should be bound
+    // to the given target and storage already allocated using
+    // glTexStorage2D.
+    //
+    // target -
+    // level -
+    // offset -
+    // width -
+    // height -
+    // format -
+    // type -
+    // data -
+    public void glTexSubImage2D(TextureTarget target, int level, int xoffset,
+                                int yoffset,
+                                int
+                                        width, int height, TextureFormat format, GLType type, FloatBuffer
+                                        data) {
+        GL11.glTexSubImage2D(textureTargetToGL(target), level, xoffset,
+                yoffset, width, height, fmtToGL(format), typeToGL(type), data);
+    }
+
 
     public int numBuffers() {
         return buffers.size();
@@ -336,10 +420,21 @@ public class GLContext {
         assert isBound(target);
         Buffer b = bufferTargets.get(target);
         assert !b.hasData();
-        b.addData(buffer.array().length, usage);
+        b.addData(buffer.remaining(), usage);
         GL15.glBufferData(bufferTargetToGL(target), buffer, usageToGL(usage));
         checkGLError();
     }
+
+    public void glBufferData(BufferTarget target, IntBuffer buffer,
+                             BufferUsage usage) {
+        assert isBound(target);
+        Buffer b = bufferTargets.get(target);
+        assert !b.hasData();
+        b.addData(buffer.remaining(), usage);
+        GL15.glBufferData(bufferTargetToGL(target), buffer, usageToGL(usage));
+        checkGLError();
+    }
+
 
     public void glBufferSubData(BufferTarget target, long byteOffset,
                                 ByteBuffer data)  {
@@ -390,7 +485,7 @@ public class GLContext {
         assert vertexArrayTarget != null;
         vertexArrayTarget.addPointer(index, size, type, normalized, stride,
                 offset);
-        GL20.glVertexAttribPointer(index, size, typetoGL(type), normalized,
+        GL20.glVertexAttribPointer(index, size, typeToGL(type), normalized,
                 stride, offset);
         checkGLError();
     }
@@ -515,6 +610,12 @@ public class GLContext {
         return s;
     }
 
+    // Get the location of a uniform variable in a shader
+    public int glGetUniformLocation(Program p, CharSequence name) {
+        assert p.hasAttribute(name);
+        return GL20.glGetUniformLocation(p.getId(), name);
+    }
+
     // Retrieve the location of a specific attribute for the given linked
     // program.
     public int glGetAttribLocation(Program p, CharSequence attrib) {
@@ -529,6 +630,10 @@ public class GLContext {
         GL30.glBindFragDataLocation(p.getId(), location, name);
     }
 
+    public void glDrawElements(DrawMode glTriangles, int i, GLType glUnsignedInt, int i1) {
+        GL11.glDrawElements(drawModeToGL(glTriangles), i, typeToGL
+                (glUnsignedInt), i1);
+    }
 
 
     private class Bitplane {
@@ -696,7 +801,18 @@ public class GLContext {
         }
     }
 
-    private int typetoGL(GLType t) {
+    private int fmtToGL(TextureFormat t) {
+        switch (t) {
+            case GL_RGBA:
+                return GL11.GL_RGBA;
+            case GL_RGBA32F:
+                return GL30.GL_RGBA32F;
+            default:
+                throw new IllegalArgumentException();
+        }
+    }
+
+    private int typeToGL(GLType t) {
         switch(t) {
             case GL_BYTE:
                 return GL11.GL_BYTE;

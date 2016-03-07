@@ -2,12 +2,22 @@
 public class GLObject {
 
     private int id;
+    private boolean deleted;
 
     public GLObject(int id) {
         this.id = id;
+        deleted = false;
     }
 
-    public int getId() {
+    int getId() {
         return id;
+    }
+
+    boolean isDeleted() {
+        return deleted;
+    }
+
+    void delete() {
+        deleted = true;
     }
 }

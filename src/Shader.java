@@ -24,12 +24,6 @@ public class Shader extends GLObject {
         attribLocations = new HashMap<String, Integer>();
     }
 
-    void delete() {
-        // don't delete a shader that hasn't been linked yet.
-        assert linked;
-        deleted = true;
-    }
-
     public boolean isCompiled() {
         return compiled;
     }
